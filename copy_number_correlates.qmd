@@ -11,43 +11,63 @@ editor: visual
 
 library(dplyr)
 library(ggplot2)
+library(ggpubr)
 
 ```
 
+Select genes with CN, DNAm and Exp data in all cell lines
+
 ```{r}
-load("~/Downloads/salva/delta_objects.RData")
+load("data/t449_778_methylation_matrices.RData")
+load("data/methylation_matrices.RData")
 
-all(names(coverage.delta)==names(methylation.delta))
-all(names(coverage.delta)==names(rna.delta))
+lps141.matrix.indices <- which(apply(lps141.matrix, 1, function(x){!any(is.na(x))}))
+lps853.matrix.indices <- which(apply(lps853.matrix, 1, function(x){!any(is.na(x))}))
+t449.matrix.indices <- which(apply(t449.matrix, 1, function(x){!any(is.na(x))}))
+t778.matrix.indices <- which(apply(t778.matrix, 1, function(x){!any(is.na(x))}))
 
-df <- data.frame(coverage.delta, methylation.delta, rna.delta)
-df
+# Confirm rows match
+all(rownames(lps141.matrix.indices) == rownames(lps853.matrix.indices))
+all(rownames(lps141.matrix.indices) == rownames(t449.matrix.indices))
+all(rownames(lps141.matrix.indices) == rownames(t778.matrix.indices))
+
+
+common.indices <- Reduce(intersect, list(lps141.matrix.indices, lps853.matrix.indices, t449.matrix.indices, t778.matrix.indices))
+length(common.indices)
+
+lps141.common <- lps141.matrix[common.indices,]
+lps853.common <- lps853.matrix[common.indices,]
+t449.common <- t449.matrix[common.indices,]
+t778.common <- t778.matrix[common.indices,]
+
 
 ```
 
-```{r}
-df %>% ggplot(aes(coverage.delta, methylation.delta)) + geom_point() + theme_bw()
-```
+DNAm
 
 ```{r}
-df %>% ggplot(aes(coverage.delta)) + geom_histogram(binwidth = 0.25) + xlim(-10,10) + geom_vline(xintercept = c(-2,2)) + theme_bw()
+df %>% ggplot(aes(LPS141.methylation)) + geom_histogram() + theme_bw() + ggtitle("LPS141 DNAm") -> p1
+df %>% ggplot(aes(LPS853.methylation)) + geom_histogram() + theme_bw()+ ggtitle("LPS853 DNAm") -> p2
+df %>% ggplot(aes(T449.methylation)) + geom_histogram() + theme_bw()+ ggtitle("T449 DNAm") -> p3
+df %>% ggplot(aes(T778.methylation)) + geom_histogram() + theme_bw()+ ggtitle("T778 DNAm") ->p4
 
-```
-
-```{r}
-x <- df$coverage.delta
-xnorm <- (x - mean(x)) / mad(x)
-qqnorm(xnorm)
-abline(0,1, col="red")
-abline(v=c(-2.5, 2.5))
-```
-
-```{r}
-df %>% mutate(coverage.delta.bin = cut(coverage.delta, c(-Inf, -2.5, -1, 0, 1, 2.5, Inf))) %>% ggplot(aes(coverage.delta.bin, methylation.delta)) + geom_violin() + theme_bw() + coord_flip() + ylab("DNA methylation\nLPS141 vs LPS853 Log FC") + xlab("Coverage\nLPS141 vs LPS853 Log FC")
+ggarrange(p1, p2, p3, p4)
+              
 ```
 
 ```{r}
 
+dat <- list(lps141.common, lps853.common, t449.common, t778.common)
+names(dat) <- c("LPS141", "LPS853", "T449", "T778")
 
+cell_lines <- names(dat)
+df <- data.frame(dat)
 
+#df %>% ggplot(aes(paste0(i, ".coverage"), paste0(i, ".coverage")))
+df %>% ggplot(aes(LPS141.coverage, LPS853.coverage)) + geom_point(aes(color=LPS853.methylation-LPS141.methylation), size=3) + scale_color_gradient2(mid = "grey99") + theme_bw()
+5
+```
+
+```{r}
+df %>% mutate(LPS853_vs_LPS141_CN = log2((1+LPS853.coverage)/(1+LPS141.coverage))) %>% mutate(LPS853_vs_LPS141_CN_clipped = pmin(pmax(LPS853_vs_LPS141_CN, -2), 2)) %>% ggplot(aes(LPS141.methylation, LPS853.methylation)) + geom_point(aes(color=LPS853_vs_LPS141_CN_clipped)) + scale_color_gradient2() + theme_bw() 
 ```
