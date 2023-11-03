@@ -1,0 +1,53 @@
+---
+title: "copy_number_correlates"
+format: html
+editor: visual
+---
+
+## LPS Copy Number / DNA methylation / Expression
+
+```{r}
+#| echo: false
+
+library(dplyr)
+library(ggplot2)
+
+```
+
+```{r}
+load("~/Downloads/salva/delta_objects.RData")
+
+all(names(coverage.delta)==names(methylation.delta))
+all(names(coverage.delta)==names(rna.delta))
+
+df <- data.frame(coverage.delta, methylation.delta, rna.delta)
+df
+
+```
+
+```{r}
+df %>% ggplot(aes(coverage.delta, methylation.delta)) + geom_point() + theme_bw()
+```
+
+```{r}
+df %>% ggplot(aes(coverage.delta)) + geom_histogram(binwidth = 0.25) + xlim(-10,10) + geom_vline(xintercept = c(-2,2)) + theme_bw()
+
+```
+
+```{r}
+x <- df$coverage.delta
+xnorm <- (x - mean(x)) / mad(x)
+qqnorm(xnorm)
+abline(0,1, col="red")
+abline(v=c(-2.5, 2.5))
+```
+
+```{r}
+df %>% mutate(coverage.delta.bin = cut(coverage.delta, c(-Inf, -2.5, -1, 0, 1, 2.5, Inf))) %>% ggplot(aes(coverage.delta.bin, methylation.delta)) + geom_violin() + theme_bw() + coord_flip() + ylab("DNA methylation\nLPS141 vs LPS853 Log FC") + xlab("Coverage\nLPS141 vs LPS853 Log FC")
+```
+
+```{r}
+
+
+
+```
