@@ -13,14 +13,24 @@ library(dplyr)
 library(ggplot2)
 library(ggpubr)
 
+dir.create("plots")
 ```
-
-Select genes with CN, DNAm and Exp data in all cell lines
 
 ```{r}
 load("data/t449_778_methylation_matrices.RData")
 load("data/methylation_matrices.RData")
 
+meth2 <- t449.matrix[,"coverage"]/100
+cov2 <- t449.matrix[,"methylation"]
+t449.matrix[,"coverage"] <- cov2
+t449.matrix[,"methylation"] <- meth2
+
+meth2 <- t778.matrix[,"coverage"]/100
+cov2 <- t778.matrix[,"methylation"]
+t778.matrix[,"coverage"] <- cov2
+t778.matrix[,"methylation"] <- meth2
+
+  
 lps141.matrix.indices <- which(apply(lps141.matrix, 1, function(x){!any(is.na(x))}))
 lps853.matrix.indices <- which(apply(lps853.matrix, 1, function(x){!any(is.na(x))}))
 t449.matrix.indices <- which(apply(t449.matrix, 1, function(x){!any(is.na(x))}))
@@ -35,11 +45,23 @@ all(rownames(lps141.matrix.indices) == rownames(t778.matrix.indices))
 common.indices <- Reduce(intersect, list(lps141.matrix.indices, lps853.matrix.indices, t449.matrix.indices, t778.matrix.indices))
 length(common.indices)
 
+# Use all rows
+common.indices <- 1:nrow(lps141.matrix)
+
 lps141.common <- lps141.matrix[common.indices,]
 lps853.common <- lps853.matrix[common.indices,]
 t449.common <- t449.matrix[common.indices,]
 t778.common <- t778.matrix[common.indices,]
 
+
+```
+
+```{r}
+dat <- list(lps141.common, lps853.common, t449.common, t778.common)
+names(dat) <- c("LPS141", "LPS853", "T449", "T778")
+
+cell_lines <- names(dat)
+df <- data.frame(dat)
 
 ```
 
@@ -51,23 +73,74 @@ df %>% ggplot(aes(LPS853.methylation)) + geom_histogram() + theme_bw()+ ggtitle(
 df %>% ggplot(aes(T449.methylation)) + geom_histogram() + theme_bw()+ ggtitle("T449 DNAm") -> p3
 df %>% ggplot(aes(T778.methylation)) + geom_histogram() + theme_bw()+ ggtitle("T778 DNAm") ->p4
 
-ggarrange(p1, p2, p3, p4)
+ggarrange(p1, p2, p3, p4, nrow = 1)
+ggsave("plots/dnam_histograms.pdf", width=12, height=3)
               
 ```
 
 ```{r}
 
-dat <- list(lps141.common, lps853.common, t449.common, t778.common)
-names(dat) <- c("LPS141", "LPS853", "T449", "T778")
-
-cell_lines <- names(dat)
-df <- data.frame(dat)
 
 #df %>% ggplot(aes(paste0(i, ".coverage"), paste0(i, ".coverage")))
-df %>% ggplot(aes(LPS141.coverage, LPS853.coverage)) + geom_point(aes(color=LPS853.methylation-LPS141.methylation), size=3) + scale_color_gradient2(mid = "grey99") + theme_bw()
-5
+df %>% ggplot(aes(LPS141.coverage, LPS853.coverage)) + geom_point(aes(color=LPS853.methylation-LPS141.methylation), size=3) + scale_color_gradient2(mid = "grey99") + theme_bw() + xlim(0, 50) + ylim(0,50)
+
 ```
 
 ```{r}
 df %>% mutate(LPS853_vs_LPS141_CN = log2((1+LPS853.coverage)/(1+LPS141.coverage))) %>% mutate(LPS853_vs_LPS141_CN_clipped = pmin(pmax(LPS853_vs_LPS141_CN, -2), 2)) %>% ggplot(aes(LPS141.methylation, LPS853.methylation)) + geom_point(aes(color=LPS853_vs_LPS141_CN_clipped)) + scale_color_gradient2() + theme_bw() 
+```
+
+```{r}
+df %>% mutate(LPS853_vs_T449_CN = log2((1+LPS853.coverage)/(1+T449.coverage))) %>% mutate(LPS853_vs_T449_CN_clipped = pmin(pmax(LPS853_vs_T449_CN, -2), 2)) %>% ggplot(aes(T449.methylation, LPS853.methylation)) + geom_point(aes(color=LPS853_vs_T449_CN_clipped)) + scale_color_gradient2() + theme_bw() 
+```
+
+```{r}
+df %>% mutate(LPS853_vs_T778_CN = log2((1+LPS853.coverage)/(1+T778.coverage))) %>% mutate(LPS853_vs_T778_CN_clipped = pmin(pmax(LPS853_vs_T778_CN, -2), 2)) %>% ggplot(aes(T778.methylation, LPS853.methylation)) + geom_point(aes(color=LPS853_vs_T778_CN_clipped)) + scale_color_gradient2() + theme_bw() 
+```
+
+```{r}
+
+df %>% mutate(LPS141_vs_LPS853_CN = log2((1+LPS141.coverage)/(1+LPS853.coverage))) %>% mutate(LPS141_vs_LPS853_CN_bin = cut(LPS141_vs_LPS853_CN, c(-Inf, -1, 1, Inf), labels=c("LPS853\nCN Amplification", "LPS141 CN = LPS853 CN", "LPS141\nCN Amplification")))  %>% filter(!is.na(LPS141_vs_LPS853_CN_bin)) %>% ggplot(aes(LPS141_vs_LPS853_CN_bin, LPS141.methylation - LPS853.methylation)) + geom_jitter(alpha=0.3) +   geom_hline(yintercept = 0) + theme_bw() + xlab("") + annotate("label", x=3.3, y=-0.85, label="Lower DNAm\nin LPS141", size=2, col="blue") + annotate("label", x=3.3, y=0.85, label="Lower DNAm\nin LPS853", size=2, col="blue")
+ggsave("plots/lps141_lps853_cn_meth.pdf", width=5, height=4)
+
+
+```
+
+```{r}
+
+df %>% mutate(LPS141_vs_T449_CN = log2((1+LPS141.coverage)/(1+T449.coverage))) %>% mutate(LPS141_vs_T449_CN_bin = cut(LPS141_vs_T449_CN, c(-Inf, -1, 1, Inf), labels=c("T449\nCN Amplification", "LPS141 CN = T449 CN", "LPS141\nCN Amplification")))  %>% filter(!is.na(LPS141_vs_T449_CN_bin)) %>% ggplot(aes(LPS141_vs_T449_CN_bin, LPS141.methylation - T449.methylation)) + geom_jitter(alpha=0.3) +   geom_hline(yintercept = 0) + theme_bw() + xlab("") + annotate("label", x=0.7, y=-0.85, label="Lower DNAm\nin LPS141", size=2, col="blue") + annotate("label", x=0.7, y=0.85, label="Lower DNAm\nin T449", size=2, col="blue")
+ggsave("plots/lps141_t449_cn_meth.pdf", width=5, height=4)
+
+```
+
+```{r}
+df %>% mutate(T449_vs_LPS853_CN = log2((1+T449.coverage)/(1+LPS853.coverage))) %>% mutate(T449_vs_LPS853_CN_bin = cut(T449_vs_LPS853_CN, c(-Inf, -1, 1, Inf), labels=c("LPS853\nCN Amplification", "T449 CN = LPS853 CN", "T449\nCN Amplification")))  %>% filter(!is.na(T449_vs_LPS853_CN_bin)) %>% ggplot(aes(T449_vs_LPS853_CN_bin, T449.methylation - LPS853.methylation)) + geom_jitter(alpha=0.3) +   geom_hline(yintercept = 0) + theme_bw() + xlab("") + annotate("label", x=3.3, y=-0.85, label="Lower DNAm\nin T449", size=2, col="blue") + annotate("label", x=3.3, y=0.85, label="Lower DNAm\nin LPS853", size=2, col="blue")
+ggsave("plots/t449_lps853_cn_meth.pdf", width=5, height=4)
+
+```
+
+```{r}
+df %>% mutate(T778_vs_LPS853_CN = log2((1+T778.coverage)/(1+LPS853.coverage))) %>% mutate(T778_vs_LPS853_CN_bin = cut(T778_vs_LPS853_CN, c(-Inf, -1, 1, Inf), labels=c("LPS853\nCN Amplification", "T778 CN = LPS853 CN", "T778\nCN Amplification")))  %>% filter(!is.na(T778_vs_LPS853_CN_bin)) %>% ggplot(aes(T778_vs_LPS853_CN_bin, T778.methylation - LPS853.methylation)) + geom_jitter(alpha=0.3) +   geom_hline(yintercept = 0) + theme_bw() + xlab("") + annotate("label", x=3.3, y=-0.85, label="Lower DNAm\nin T778", size=2, col="blue") + annotate("label", x=3.3, y=0.85, label="Lower DNAm\nin LPS853", size=2, col="blue")
+ggsave("plots/t778_lps853_cn_meth.pdf", width=5, height=4)
+
+```
+
+```{r}
+df %>% mutate(T778_vs_T449_CN = log2((1+T778.coverage)/(1+T449.coverage))) %>% mutate(T778_vs_T449_CN_bin = cut(T778_vs_T449_CN, c(-Inf, -1, 1, Inf), labels=c("T449\nCN Amplification", "T778 CN = T449 CN", "T778\nCN Amplification")))  %>% filter(!is.na(T778_vs_T449_CN_bin)) %>% ggplot(aes(T778_vs_T449_CN_bin, T778.methylation - T449.methylation)) + geom_jitter(alpha=0.3) +   geom_hline(yintercept = 0) + theme_bw() + xlab("") + annotate("label", x=3.3, y=-0.85, label="Lower DNAm\nin T778", size=2, col="blue") + annotate("label", x=3.3, y=0.85, label="Lower DNAm\nin T449", size=2, col="blue")
+ggsave("plots/t778_t449_cn_meth.pdf", width=5, height=4)
+```
+
+```{r}
+df %>% mutate(LPS141_vs_LPS853_CN = log2((1+LPS141.coverage)/(1+LPS853.coverage))) %>% 
+  mutate(LPS141_vs_LPS853_CN_bin = cut(LPS141_vs_LPS853_CN, c(-Inf, -1, 1, Inf), labels=c("LPS853 CN Amplification", "LPS141 CN = LPS853 CN", "LPS141 CN Amplification"))) %>% filter(!is.na(LPS141_vs_LPS853_CN_bin)) %>% ggplot(aes(LPS853.methylation, LPS141.methylation)) + geom_point(alpha=0.2) + geom_hline(yintercept = 0) + facet_wrap(~LPS141_vs_LPS853_CN_bin) + theme_bw() + annotate("label", x=0.8, y=0.2, label="Lower DNAm\nin LPS141", size=3, col="blue") + annotate("label", x=0.2, y=0.8, label="Lower DNAm\nin LPS853", size=3, col="blue") + geom_abline(intercept = 0, slope=1, col="blue", linetype=2)
+ggsave("plots/lps141_lps853_cn_meth_scatter.pdf", width=11, height=4)
+
+
+```
+
+```{r}
+df %>% mutate(LPS141_vs_T449_CN = log2((1+LPS141.coverage)/(1+T449.coverage))) %>% 
+  mutate(LPS141_vs_T449_CN_bin = cut(LPS141_vs_T449_CN, c(-Inf, -1, 1, Inf), labels=c("T449 CN Amplification", "LPS141 CN = T449 CN", "LPS141 CN Amplification"))) %>% filter(!is.na(LPS141_vs_T449_CN_bin)) %>% ggplot(aes(T449.methylation, LPS141.methylation)) + geom_point(alpha=0.2) + geom_hline(yintercept = 0) + facet_wrap(~LPS141_vs_T449_CN_bin) + theme_bw() + annotate("label", x=0.75, y=0.25, label="Lower DNAm\nin LPS141", size=2, col="blue") + annotate("label", x=0.25, y=0.75, label="Lower DNAm\nin T449", size=2, col="blue") + geom_abline(intercept = 0, slope=1)
+ggsave("plots/lps141_t449_cn_meth_scatter.pdf", width=10, height=4)
+
 ```
